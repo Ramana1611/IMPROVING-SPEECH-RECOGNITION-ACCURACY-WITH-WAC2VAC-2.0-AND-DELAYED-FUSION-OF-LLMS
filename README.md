@@ -1,4 +1,4 @@
-IMPROVING SPEECH RECOGNITION ACCURACY WITH WAC2VAC 2.0 AND DELAYED FUSION OF LLMS
+IMPROVING SPEECH RECOGNITION ACCURACY WITH WAV2VAC 2.0 AND DELAYED FUSION OF LLMS
 
  
 Project Supervisor:
@@ -30,7 +30,7 @@ environments. Reduce errors caused by similar-sounding words (homophones).
 Speech assistants, transcription services, accessibility tools, etc.
 
 3.	How this is going to contribute for further development?
-Combining	WAC2VAC	2.0	with	Transformers	for	improved	context-aware transcription.
+Combining	WAV2VAC	2.0	with	Transformers	for	improved	context-aware transcription.
 
 4.	Scope for viability?
 High, as AI-driven speech processing is in high demand.
