@@ -1,3 +1,5 @@
+#It only work on python version 3.12
+python -m version 
 #Installation 
 pip install torch pyaudio transformers gTTS numpy librosa
 
