@@ -1,0 +1,15 @@
+#Installation 
+pip install torch pyaudio transformers gTTS numpy librosa
+
+#Docker Container 
+FROM python:3.9
+RUN apt-get update && apt-get install -y libasound2-dev
+COPY . .
+RUN pip install -r requirements.txt
+CMD ["python", "realtime_processor.py"]
+
+#Fast API
+@app.post("/process_audio")
+async def process_audio(file: UploadFile = File(...)):
+    audio = await file.read()
+    # Process and return corrected text+audio
