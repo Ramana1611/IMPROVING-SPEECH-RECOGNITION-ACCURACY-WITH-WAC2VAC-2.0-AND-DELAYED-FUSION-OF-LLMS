@@ -1,0 +1,137 @@
+import pyaudio
+import numpy as np
+import sounddevice as sd
+import torch
+from transformers import Wav2Vec2ForCTC, Wav2Vec2Processor, BertTokenizer, BertModel, pipeline
+from gtts import gTTS
+import os
+import librosa
+from concurrent.futures import ThreadPoolExecutor
+
+print(sd.query_devices())
+
+class RealTimeSpeechProcessor:
+    def __init__(self):
+        # Initialize device
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        print(f"Using device: {self.device}")
+        
+        # Speech Recognition (Wav2Vec 2.0)
+        self.processor = Wav2Vec2Processor.from_pretrained("facebook/wav2vec2-base-960h")
+        self.asr_model = Wav2Vec2ForCTC.from_pretrained("facebook/wav2vec2-base-960h").to(self.device)
+        
+        # Text Correction (BERT + LLM)
+        self.bert_tokenizer = BertTokenizer.from_pretrained('bert-base-uncased')
+        self.bert_model = BertModel.from_pretrained('bert-base-uncased').to(self.device)
+        self.llm = pipeline("text-generation", 
+                          model="gpt2",
+                          device=0 if self.device == "cuda" else -1)
+        
+        # Audio Config
+        self.CHUNK = 1024
+        self.FORMAT = pyaudio.paInt16
+        self.CHANNELS = 1
+        self.RATE = 16000
+        self.SILENCE_THRESHOLD = 500
+
+    def capture_audio(self, duration=5):
+        """Capture audio with PyAudio with error handling"""
+        p = pyaudio.PyAudio()
+        stream = None
+        frames = []
+        
+        try:
+            # List available devices
+            print("\nAvailable audio input devices:")
+            for i in range(p.get_device_count()):
+                dev = p.get_device_info_by_index(i)
+                if dev['maxInputChannels'] > 0:
+                    print(f"{i}: {dev['name']}")
+            
+            # Try to open stream
+            stream = p.open(
+                format=self.FORMAT,
+                channels=self.CHANNELS,
+                rate=self.RATE,
+                input=True,
+                frames_per_buffer=self.CHUNK,
+                input_device_index=None  # Use default device
+            )
+            
+            print(f"\nRecording for {duration} seconds...")
+            for _ in range(0, int(self.RATE / self.CHUNK * duration)):
+                data = stream.read(self.CHUNK, exception_on_overflow=False)
+                frames.append(np.frombuffer(data, dtype=np.int16))
+            
+            return np.concatenate(frames), self.RATE
+            
+        except OSError as e:
+            print(f"Audio error: {str(e)}")
+            return None, self.RATE
+        finally:
+            if stream:
+                stream.stop_stream()
+                stream.close()
+            p.terminate()
+
+    def speech_to_text(self, audio):
+        """Convert speech to text with Wav2Vec2"""
+        if audio is None or len(audio) == 0:
+            return ""
+            
+        inputs = self.processor(audio, sampling_rate=self.RATE, return_tensors="pt", padding=True).input_values.to(self.device)
+        with torch.no_grad():
+            logits = self.asr_model(inputs).logits
+            predicted_ids = torch.argmax(logits, dim=-1)
+            return self.processor.batch_decode(predicted_ids)[0]
+
+    def correct_text(self, text):
+        """Correct text using LLM"""
+        if not text.strip():
+            return ""
+            
+        prompt = f"Correct this speech transcription: {text}\nCorrected version:"
+        try:
+            corrected = self.llm(prompt, max_length=100, num_return_sequences=1)[0]['generated_text']
+            return corrected.split("Corrected version:")[-1].strip()
+        except Exception as e:
+            print(f"LLM error: {str(e)}")
+            return text
+
+    def text_to_speech(self, text):
+        """Convert text to speech"""
+        if not text.strip():
+            return
+            
+        try:
+            tts = gTTS(text=text, lang='en')
+            tts.save("output.mp3")
+            os.system("start output.mp3" if os.name == 'nt' else "afplay output.mp3")
+        except Exception as e:
+            print(f"TTS error: {str(e)}")
+
+    def process_realtime(self):
+        """Main processing loop"""
+        print("\nStarting real-time processing. Press Ctrl+C to stop...")
+        try:
+            while True:
+                audio, sr = self.capture_audio(duration=3)
+                if audio is None:
+                    continue
+                
+                raw_text = self.speech_to_text(audio)
+                print(f"\nRaw: {raw_text}")
+                
+                corrected_text = self.correct_text(raw_text)
+                print(f"Corrected: {corrected_text}")
+                
+                self.text_to_speech(corrected_text)
+                
+        except KeyboardInterrupt:
+            print("\nProcessing stopped.")
+        except Exception as e:
+            print(f"Fatal error: {str(e)}")
+
+if __name__ == "__main__":
+    processor = RealTimeSpeechProcessor()
+    processor.process_realtime()
