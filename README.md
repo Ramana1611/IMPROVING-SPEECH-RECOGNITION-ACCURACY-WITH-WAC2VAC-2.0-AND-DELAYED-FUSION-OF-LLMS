@@ -5,7 +5,7 @@ Project Supervisor:
 S.Akilandeswari ME.(Ph.D)
  
 TEAM MEMBERS:
-RAMANA .R ARAVINDHAN .M SELVEM .A
+RAMANA .R, ARAVINDHAN .M, SELVEM .A
  
 Motivation
 1.	Why this project?
